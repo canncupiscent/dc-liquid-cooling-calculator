@@ -24,6 +24,11 @@ const HW_DEVICES = [
 // Rack archetypes — seeded with GB200 NVL72; extend as needed.
 const RACK_ARCHETYPES = [
   { id: 'nvl72', name: 'NVIDIA GB200 NVL72 rack', rackKW: 132, note: 'Reference rack power' },
+  { id: 'dgx_h100', name: 'NVIDIA DGX H100 rack', rackKW: 60, note: '8x H100 compute servers' },
+  { id: 'mi300x', name: 'AMD MI300X rack', rackKW: 60, note: '8x MI300X compute servers' },
+  { id: 'gaudi3', name: 'Intel Gaudi 3 rack', rackKW: 55, note: '8x Gaudi 3 compute servers' },
+  { id: 'std_30kw', name: 'Generic 30 kW rack', rackKW: 30, note: 'Common enterprise density' },
+  { id: 'high_100kw', name: 'Generic 100 kW high-density rack', rackKW: 100, note: 'Ultra-high density reference' },
 ];
 
 // ASHRAE W-classes: upper limit = class number; lower limit = 2°C
