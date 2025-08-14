@@ -1,4 +1,5 @@
 import React, { useMemo, useState } from 'react'
+import { CDU_MODELS } from './data/cduModels.js'
 
 function numberOr(value, fallback) {
   const v = Number(value);
@@ -12,13 +13,39 @@ const COOLANTS = {
   pg30: { name: 'Propylene Glycol 30%', rho: 1038, cp: 3.70, mu: 0.0030 },
 };
 
-// Hardware library (nominal TDPs; edit as needed)
+// Hardware library (nominal TDP/TBP; edit as needed)
 const HW_DEVICES = [
-  { id: 'nvidia_b200', name: 'NVIDIA Blackwell B200 (SXM)', tdpW: 1000, note: 'Nominal TDP' },
-  { id: 'nvidia_h200', name: 'NVIDIA H200 (SXM)', tdpW: 700, note: 'Up to 700 W' },
-  { id: 'nvidia_h100', name: 'NVIDIA H100 (SXM5)', tdpW: 700, note: 'Up to 700 W' },
-  { id: 'amd_mi300x', name: 'AMD Instinct MI300X (OAM)', tdpW: 750, note: 'Nominal 750 W' },
-  { id: 'intel_gaudi3', name: 'Intel Gaudi 3 (OAM)', tdpW: 900, note: 'OAM air 900 W; liquid may be higher' },
+  // NVIDIA (from Hardware_spec.md)
+  { id: 'nvidia_dgx_b200_sys', name: 'NVIDIA DGX B200 System (10U)', tdpW: 14300, note: 'System' },
+  { id: 'nvidia_b200_liquid', name: 'NVIDIA B200 (Liquid, SXM)', tdpW: 1200, note: 'GPU' },
+  { id: 'nvidia_b200_air', name: 'NVIDIA B200 (Air, SXM)', tdpW: 1000, note: 'GPU' },
+  { id: 'nvidia_b100', name: 'NVIDIA B100 (SXM)', tdpW: 700, note: 'GPU' },
+  { id: 'nvidia_dgx_h100_sys', name: 'NVIDIA DGX H100 System (8U)', tdpW: 10200, note: 'System' },
+  { id: 'nvidia_h200_sxm', name: 'NVIDIA H200 (SXM)', tdpW: 700, note: 'GPU' },
+  { id: 'nvidia_h200_pcie', name: 'NVIDIA H200 (PCIe dual-slot)', tdpW: 600, note: 'GPU' },
+  { id: 'nvidia_h100_sxm5', name: 'NVIDIA H100 (SXM5)', tdpW: 700, note: 'GPU' },
+  { id: 'nvidia_h100_pcie', name: 'NVIDIA H100 (PCIe dual-slot)', tdpW: 350, note: 'GPU' },
+  { id: 'nvidia_l40s', name: 'NVIDIA L40S (PCIe dual-slot)', tdpW: 350, note: 'GPU' },
+  { id: 'nvidia_l40', name: 'NVIDIA L40 (PCIe dual-slot)', tdpW: 300, note: 'GPU' },
+  { id: 'nvidia_l4', name: 'NVIDIA L4 (PCIe single-slot LP)', tdpW: 72, note: 'GPU' },
+
+  // AMD (TBP mapped to tdpW)
+  { id: 'amd_mi355x', name: 'AMD Instinct MI355X (OAM)', tdpW: 1400, note: 'GPU' },
+  { id: 'amd_mi350x', name: 'AMD Instinct MI350X (OAM)', tdpW: 1000, note: 'GPU' },
+  { id: 'amd_mi325x', name: 'AMD Instinct MI325X (OAM)', tdpW: 750, note: 'GPU' },
+  { id: 'amd_mi300x', name: 'AMD Instinct MI300X (OAM)', tdpW: 750, note: 'GPU' },
+  { id: 'amd_mi300a_liquid', name: 'AMD Instinct MI300A (Liquid, APU SH5)', tdpW: 760, note: 'APU' },
+  { id: 'amd_mi250x', name: 'AMD Instinct MI250X (OAM)', tdpW: 560, note: 'GPU' },
+  { id: 'amd_mi250', name: 'AMD Instinct MI250 (OAM)', tdpW: 560, note: 'GPU' },
+  { id: 'amd_mi210', name: 'AMD Instinct MI210 (PCIe)', tdpW: 300, note: 'GPU' },
+  { id: 'amd_mi100', name: 'AMD Instinct MI100 (PCIe)', tdpW: 300, note: 'GPU' },
+
+  // Intel
+  { id: 'intel_gaudi3_hl325l', name: 'Intel Gaudi 3 HL-325L (OAM)', tdpW: 900, note: 'NPU' },
+  { id: 'intel_gaudi3_hl338', name: 'Intel Gaudi 3 HL-338 (PCIe dual-slot)', tdpW: 600, note: 'NPU' },
+  { id: 'intel_gaudi2', name: 'Intel Gaudi 2 (OAM)', tdpW: 600, note: 'NPU' },
+  { id: 'intel_max_1550', name: 'Intel Data Center GPU Max 1550 (OAM)', tdpW: 600, note: 'GPU' },
+  { id: 'intel_max_1100', name: 'Intel Data Center GPU Max 1100 (PCIe)', tdpW: 300, note: 'GPU' },
 ];
 
 // Rack archetypes — seeded with GB200 NVL72; extend as needed.
@@ -172,6 +199,7 @@ export default function App() {
   const [redundancy, setRedundancy] = useState('N');
   const [baselineFanKW, setBaselineFanKW] = useState('120');
   const [baselineAirCOP, setBaselineAirCOP] = useState('4.0');
+  const [cduModelId, setCduModelId] = useState('');
 
   // Hardware presets
   const [hwMode, setHwMode] = useState('device'); // 'device' | 'rack'
@@ -527,15 +555,44 @@ export default function App() {
               )}
               <div className='grid grid-cols-2 gap-3 mt-3'>
                 <div>
-                  <div className='text-xs text-slate-500 mb-1'>CDU capacity (kW)</div>
+                  <div className='text-xs text-slate-500 mb-1'>CDU model</div>
+                  <Select
+                    value={cduModelId}
+                    onChange={setCduModelId}
+                    options={[{ value: '', label: '— Select —' }, ...CDU_MODELS.map(m => ({ value: m.id, label: `${m.model} • ${m.capacityKW} kW • ${m.type}` }))]}
+                  />
+                  {cduModelId && (
+                    <div className='flex gap-2 mt-2'>
+                      <button
+                        onClick={() => {
+                          const m = CDU_MODELS.find(x => x.id === cduModelId);
+                          if (m) setCduCapacityKW(String(m.capacityKW));
+                        }}
+                        className='rounded-xl border px-3 py-2 bg-slate-900 text-white'>
+                        Apply capacity
+                      </button>
+                    </div>
+                  )}
+                </div>
+                <div>
+                  <div className='text-xs text-slate-500 mb-1 flex items-center gap-2'>
+                    CDU capacity (kW)
+                    <Tooltip content={'Maximum cooling capacity for a single CDU. Used to estimate racks per CDU and total CDUs required. Should meet captured IT heat per CDU with margin for transients and redundancy.'} />
+                  </div>
                   <Input value={cduCapacityKW} onChange={setCduCapacityKW} suffix='kW' />
                 </div>
                 <div>
-                  <div className='text-xs text-slate-500 mb-1'>Avg rack power</div>
+                  <div className='text-xs text-slate-500 mb-1 flex items-center gap-2'>
+                    Avg rack power
+                    <Tooltip content={'Average IT power per rack that the CDU will serve. Higher rack kW reduces the number of racks that a given CDU can support.'} />
+                  </div>
                   <Input value={rackKW} onChange={setRackKW} suffix='kW/rack' />
                 </div>
                 <div>
-                  <div className='text-xs text-slate-500 mb-1'>Redundancy</div>
+                  <div className='text-xs text-slate-500 mb-1 flex items-center gap-2'>
+                    Redundancy
+                    <Tooltip content={'Select N or N+1 sizing. N+1 adds one extra CDU beyond the minimum to cover a single failure/maintenance, increasing total units required.'} />
+                  </div>
                   <Select value={redundancy} onChange={setRedundancy} options={[{ value: 'N', label: 'N' }, { value: 'N+1', label: 'N+1' }]} />
                 </div>
                 <div className='rounded-xl border p-3 bg-white'>
@@ -562,6 +619,7 @@ export default function App() {
           </Section>
         </div>
 
+        <div className='mt-6'>
         <Section title='Formulae (reference)'>
           <div className='text-sm text-slate-700 space-y-3'>
             <div>
@@ -631,6 +689,7 @@ export default function App() {
             </div>
           </div>
         </Section>
+        </div>
 
         <div className='text-xs text-slate-500 mt-4'>
           Defaults are indicative. Override TDPs, counts, and rack kW with vendor BOMs. Validate W-class vs server specs and CDU datasheets.
