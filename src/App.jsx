@@ -552,10 +552,10 @@ export default function App() {
           </Section>
 
           <Section title='ROI Baseline Inputs'>
-            <Row label='Baseline chiller COP (air)'>
+            <Row label='Baseline chiller COP (air)' tip={'Coefficient of Performance for the air-cooled baseline. COP = cooling kW / electric kW. Higher COP means a more efficient baseline (smaller savings vs DLC). Typical air-cooled data centers operate around COP 3–5 depending on climate and setpoints.'}>
               <Input value={baselineAirCOP} onChange={setBaselineAirCOP} suffix='—' step={0.1} />
             </Row>
-            <Row label='Fan power avoided' help='Facility-wide air-cooling fan power removed by DLC'>
+            <Row label='Fan power avoided' help='Facility-wide air-cooling fan power removed by DLC' tip={'Total site fan power that DLC eliminates or reduces (e.g., CRAH/CRAC fans, AHUs). Enter average kW across the load. Higher values increase savings attributed to DLC as less air handling is required.'}>
               <Input value={baselineFanKW} onChange={setBaselineFanKW} suffix='kW' />
             </Row>
             <div className='text-xs text-slate-500 mt-2'>Savings assume baseline includes chiller + fans; liquid case includes pump + liquid chiller only.</div>
