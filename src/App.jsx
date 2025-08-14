@@ -1,4 +1,5 @@
 import React, { useMemo, useState } from 'react'
+import { CDU_MODELS } from './data/cduModels.js'
 
 function numberOr(value, fallback) {
   const v = Number(value);
@@ -12,13 +13,39 @@ const COOLANTS = {
   pg30: { name: 'Propylene Glycol 30%', rho: 1038, cp: 3.70, mu: 0.0030 },
 };
 
-// Hardware library (nominal TDPs; edit as needed)
+// Hardware library (nominal TDP/TBP; edit as needed)
 const HW_DEVICES = [
-  { id: 'nvidia_b200', name: 'NVIDIA Blackwell B200 (SXM)', tdpW: 1000, note: 'Nominal TDP' },
-  { id: 'nvidia_h200', name: 'NVIDIA H200 (SXM)', tdpW: 700, note: 'Up to 700 W' },
-  { id: 'nvidia_h100', name: 'NVIDIA H100 (SXM5)', tdpW: 700, note: 'Up to 700 W' },
-  { id: 'amd_mi300x', name: 'AMD Instinct MI300X (OAM)', tdpW: 750, note: 'Nominal 750 W' },
-  { id: 'intel_gaudi3', name: 'Intel Gaudi 3 (OAM)', tdpW: 900, note: 'OAM air 900 W; liquid may be higher' },
+  // NVIDIA (from Hardware_spec.md)
+  { id: 'nvidia_dgx_b200_sys', name: 'NVIDIA DGX B200 System (10U)', tdpW: 14300, note: 'System' },
+  { id: 'nvidia_b200_liquid', name: 'NVIDIA B200 (Liquid, SXM)', tdpW: 1200, note: 'GPU' },
+  { id: 'nvidia_b200_air', name: 'NVIDIA B200 (Air, SXM)', tdpW: 1000, note: 'GPU' },
+  { id: 'nvidia_b100', name: 'NVIDIA B100 (SXM)', tdpW: 700, note: 'GPU' },
+  { id: 'nvidia_dgx_h100_sys', name: 'NVIDIA DGX H100 System (8U)', tdpW: 10200, note: 'System' },
+  { id: 'nvidia_h200_sxm', name: 'NVIDIA H200 (SXM)', tdpW: 700, note: 'GPU' },
+  { id: 'nvidia_h200_pcie', name: 'NVIDIA H200 (PCIe dual-slot)', tdpW: 600, note: 'GPU' },
+  { id: 'nvidia_h100_sxm5', name: 'NVIDIA H100 (SXM5)', tdpW: 700, note: 'GPU' },
+  { id: 'nvidia_h100_pcie', name: 'NVIDIA H100 (PCIe dual-slot)', tdpW: 350, note: 'GPU' },
+  { id: 'nvidia_l40s', name: 'NVIDIA L40S (PCIe dual-slot)', tdpW: 350, note: 'GPU' },
+  { id: 'nvidia_l40', name: 'NVIDIA L40 (PCIe dual-slot)', tdpW: 300, note: 'GPU' },
+  { id: 'nvidia_l4', name: 'NVIDIA L4 (PCIe single-slot LP)', tdpW: 72, note: 'GPU' },
+
+  // AMD (TBP mapped to tdpW)
+  { id: 'amd_mi355x', name: 'AMD Instinct MI355X (OAM)', tdpW: 1400, note: 'GPU' },
+  { id: 'amd_mi350x', name: 'AMD Instinct MI350X (OAM)', tdpW: 1000, note: 'GPU' },
+  { id: 'amd_mi325x', name: 'AMD Instinct MI325X (OAM)', tdpW: 750, note: 'GPU' },
+  { id: 'amd_mi300x', name: 'AMD Instinct MI300X (OAM)', tdpW: 750, note: 'GPU' },
+  { id: 'amd_mi300a_liquid', name: 'AMD Instinct MI300A (Liquid, APU SH5)', tdpW: 760, note: 'APU' },
+  { id: 'amd_mi250x', name: 'AMD Instinct MI250X (OAM)', tdpW: 560, note: 'GPU' },
+  { id: 'amd_mi250', name: 'AMD Instinct MI250 (OAM)', tdpW: 560, note: 'GPU' },
+  { id: 'amd_mi210', name: 'AMD Instinct MI210 (PCIe)', tdpW: 300, note: 'GPU' },
+  { id: 'amd_mi100', name: 'AMD Instinct MI100 (PCIe)', tdpW: 300, note: 'GPU' },
+
+  // Intel
+  { id: 'intel_gaudi3_hl325l', name: 'Intel Gaudi 3 HL-325L (OAM)', tdpW: 900, note: 'NPU' },
+  { id: 'intel_gaudi3_hl338', name: 'Intel Gaudi 3 HL-338 (PCIe dual-slot)', tdpW: 600, note: 'NPU' },
+  { id: 'intel_gaudi2', name: 'Intel Gaudi 2 (OAM)', tdpW: 600, note: 'NPU' },
+  { id: 'intel_max_1550', name: 'Intel Data Center GPU Max 1550 (OAM)', tdpW: 600, note: 'GPU' },
+  { id: 'intel_max_1100', name: 'Intel Data Center GPU Max 1100 (PCIe)', tdpW: 300, note: 'GPU' },
 ];
 
 // Rack archetypes — seeded with GB200 NVL72; extend as needed.
@@ -54,7 +81,11 @@ function Row({ label, children, help }) {
   return (
     <div className='grid grid-cols-1 md:grid-cols-3 gap-2 items-center py-1.5'>
       <div className='md:text-right text-sm text-slate-600'>
-        <div>{label}</div>
+        <div className='flex items-center justify-between md:justify-end gap-2'>
+          <span>{label}</span>
+          {/* Tooltip slot will render if provided via tip prop */}
+          {/** placeholder, actual Tooltip rendered by Row signature change below **/}
+        </div>
         {help && <div className='text-xs text-slate-400'>{help}</div>}
       </div>
       <div className='md:col-span-2'>{children}</div>
@@ -110,6 +141,37 @@ function Status({ level = 'ok', children }) {
   );
 }
 
+// Lightweight tooltip component using Tailwind + group-hover
+function Tooltip({ content }) {
+  return (
+    <span className='relative inline-block group align-middle'>
+      <svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 20 20' fill='currentColor' className='h-4 w-4 text-slate-400'>
+        <path fillRule='evenodd' d='M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-9-3a1 1 0 112 0 1 1 0 01-2 0zm.25 3.5a.75.75 0 000 1.5h.5V14a.75.75 0 001.5 0v-2.5a.75.75 0 00-.75-.75h-1.25z' clipRule='evenodd' />
+      </svg>
+      <div className='absolute z-20 hidden group-hover:block max-w-xs md:max-w-sm -right-1 md:left-auto md:-translate-x-0 translate-y-2 md:translate-y-0 mt-2 md:mt-0 p-2 rounded-lg border bg-white text-xs text-slate-700 shadow-lg w-64'>
+        {content}
+      </div>
+    </span>
+  );
+}
+
+// Extend Row to support an optional tip prop
+const _OriginalRow = Row;
+Row = function Row({ label, children, help, tip }) {
+  return (
+    <div className='grid grid-cols-1 md:grid-cols-3 gap-2 items-center py-1.5'>
+      <div className='md:text-right text-sm text-slate-600'>
+        <div className='flex items-center justify-between md:justify-end gap-2'>
+          <span>{label}</span>
+          {tip && <Tooltip content={tip} />}
+        </div>
+        {help && <div className='text-xs text-slate-400'>{help}</div>}
+      </div>
+      <div className='md:col-span-2'>{children}</div>
+    </div>
+  );
+}
+
 export default function App() {
   // Thermal inputs
   const [itKW, setItKW] = useState('1000'); // total IT heat to remove [kW]
@@ -137,6 +199,7 @@ export default function App() {
   const [redundancy, setRedundancy] = useState('N');
   const [baselineFanKW, setBaselineFanKW] = useState('120');
   const [baselineAirCOP, setBaselineAirCOP] = useState('4.0');
+  const [cduModelId, setCduModelId] = useState('');
 
   // Hardware presets
   const [hwMode, setHwMode] = useState('device'); // 'device' | 'rack'
@@ -288,68 +351,38 @@ export default function App() {
             <button onClick={loadExample} className='rounded-xl border px-3 py-2 bg-white hover:bg-slate-50'>Load example</button>
           </div>
         </div>
-
-        <div className='grid grid-cols-1 lg:grid-cols-2 gap-6'>
-          <Section title='Thermal Inputs (Liquid)'>
-            <Row label='IT heat load' help='Total server heat to reject into liquid loop'>
-              <Input value={itKW} onChange={setItKW} suffix='kW' />
-            </Row>
-            <Row label='Capture fraction' help='0–1 portion of IT heat absorbed by liquid'>
-              <Input value={captureFrac} onChange={setCaptureFrac} suffix='ratio' step={0.01} />
-            </Row>
-            <Row label='Supply temperature (entering water)'>
-              <Input value={supplyC} onChange={setSupplyC} suffix='°C' />
-            </Row>
-            <Row label='ΔT across loop' help='Return = Supply + ΔT'>
-              <Input value={dT} onChange={setDT} suffix='°C' />
-            </Row>
-            <Row label='Coolant'>
-              <Select
-                value={coolant}
-                onChange={setCoolant}
-                options={Object.entries(COOLANTS).map(([value, c]) => ({ value, label: c.name }))}
-              />
-            </Row>
-            <Row label='ASHRAE W-class' help='Controls allowed supply range'>
-              <Select
-                value={wClass}
-                onChange={setWClass}
-                options={Object.entries(W_CLASSES).map(([value, w]) => ({ value, label: w.label }))}
-              />
-            </Row>
-            <Row label='Cold plate approach' help='CPU/GPU-to-coolant'>
-              <Input value={coldPlateApproachC} onChange={setColdPlateApproachC} suffix='°C' />
-            </Row>
-            <Row label='CDU approach' help='Facility water to CDU secondary'>
-              <Input value={cduApproachC} onChange={setCduApproachC} suffix='°C' />
-            </Row>
-          </Section>
-
-          <Section title='Hydraulics & Energy Inputs'>
-            <Row label='Pipe internal diameter'>
-              <Input value={pipeIDmm} onChange={setPipeIDmm} suffix='mm' />
-            </Row>
-            <Row label='Equivalent loop length' help='Straight length plus fittings equivalent'>
-              <Input value={loopLenM} onChange={setLoopLenM} suffix='m' />
-            </Row>
-            <Row label='Pipe roughness' help='Copper 0.0015, steel 0.045, HDPE 0.007'>
-              <Input value={roughnessMM} onChange={setRoughnessMM} suffix='mm' />
-            </Row>
-            <Row label='Minor loss coefficient ΣK' help='Valves, bends, HX, QDs, manifolds'>
-              <Input value={kMinor} onChange={setKMinor} suffix='—' />
-            </Row>
-            <Row label='Pump efficiency'>
-              <Input value={pumpEff} onChange={setPumpEff} suffix='η (0–1)' step={0.01} />
-            </Row>
-            <Row label='Chiller COP (liquid loop)'>
-              <Input value={chillerCOP} onChange={setChillerCOP} suffix='—' step={0.1} />
-            </Row>
-          </Section>
+        {/* Quick Start banner */}
+        <div className='rounded-2xl border p-4 md:p-6 bg-white/70 mb-6'>
+          <div className='font-semibold text-lg mb-3'>Quick Start — Start here</div>
+          <div className='grid grid-cols-1 md:grid-cols-3 gap-3 text-sm'>
+            <div className='rounded-xl border p-3 bg-white'>
+              <div className='font-medium mb-1'>Step 1 — Pick presets</div>
+              <div className='text-slate-600 mb-2'>Choose Device or Rack to estimate rack IT kW.</div>
+              <div className='grid grid-cols-2 gap-2'>
+                <button onClick={() => setHwMode('device')} className={`rounded-lg border px-2 py-1 ${hwMode === 'device' ? 'bg-slate-900 text-white' : 'bg-white'}`}>Device</button>
+                <button onClick={() => setHwMode('rack')} className={`rounded-lg border px-2 py-1 ${hwMode === 'rack' ? 'bg-slate-900 text-white' : 'bg-white'}`}>Rack</button>
+              </div>
+            </div>
+            <div className='rounded-xl border p-3 bg-white'>
+              <div className='font-medium mb-1'>Step 2 — Fleet IT power</div>
+              <div className='text-slate-600 mb-2'>Enter racks, then apply to calculator IT kW.</div>
+              <div className='flex items-center gap-2'>
+                <div className='text-xs text-slate-500'>Fleet IT (est)</div>
+                <div className='font-semibold'>{fleetIT_kW_fromRack.toFixed(2)} kW</div>
+              </div>
+              <button onClick={() => setItKW(fleetIT_kW_fromRack.toFixed(2))} className='mt-2 rounded-lg border px-2 py-1 bg-slate-900 text-white'>Apply to IT kW</button>
+            </div>
+            <div className='rounded-xl border p-3 bg-white'>
+              <div className='font-medium mb-1'>Step 3 — Thermal setpoints</div>
+              <div className='text-slate-600 mb-2'>Adjust Supply and ΔT; pick coolant and W-class.</div>
+              <div className='text-xs text-slate-500'>Results update instantly below.</div>
+            </div>
+          </div>
         </div>
 
-        {/* NEW: Hardware presets */}
-        <div className='grid grid-cols-1 lg:grid-cols-2 gap-6 mt-6'>
-          <Section title='Hardware Presets (Devices → Rack)'>
+        <div className='grid grid-cols-1 lg:grid-cols-2 gap-6'>
+          {/* Left: 1) Hardware Presets */}
+          <Section title='1) Hardware Presets (Devices → Rack)'>
             <Row label='Mode' help='Choose to estimate from device TDPs or a rack archetype'>
               <div className='grid grid-cols-2 gap-2'>
                 <button onClick={() => setHwMode('device')} className={`rounded-xl border px-3 py-2 ${hwMode === 'device' ? 'bg-slate-900 text-white' : 'bg-white'}`}>Device</button>
@@ -398,7 +431,8 @@ export default function App() {
             </>)}
           </Section>
 
-          <Section title='Fleet Planner (push to calculator)'>
+          {/* Right: 2) Fleet Planner (push to calculator) */}
+          <Section title='2) Fleet Planner (push to calculator)'>
             <Row label='Rack IT power' help='From presets or manual'>
               <Input value={rackKW} onChange={setRackKW} suffix='kW/rack' />
             </Row>
@@ -415,8 +449,68 @@ export default function App() {
           </Section>
         </div>
 
+        {/* Grid: 3) Thermal Inputs + Hydraulics */}
+        <div className='grid grid-cols-1 lg:grid-cols-2 gap-6 mt-6'>
+          <Section title='3) Thermal Inputs (Liquid)'>
+            <Row label='IT heat load' help='Total server heat to reject into liquid loop' tip={'Total IT power (kW) that must be removed by the cooling system. If using the Fleet Planner, you can push its estimate here.'}>
+              <Input value={itKW} onChange={setItKW} suffix='kW' />
+            </Row>
+            <Row label='Capture fraction' help='0–1 portion of IT heat absorbed by liquid' tip={'Portion of IT heat captured by the liquid loop (e.g., 1.0 for full direct liquid cooling; <1.0 if some heat is still air-cooled).'}>
+              <Input value={captureFrac} onChange={setCaptureFrac} suffix='ratio' step={0.01} />
+            </Row>
+            <Row label='Supply temperature (entering water)' tip={'Entering water temperature at the device cold plates/manifolds. Checked against selected ASHRAE W-class.'}>
+              <Input value={supplyC} onChange={setSupplyC} suffix='°C' />
+            </Row>
+            <Row label='ΔT across loop' help='Return = Supply + ΔT' tip={'Desired temperature rise across the loop. Larger ΔT lowers flow; smaller ΔT raises flow. Return temperature = Supply + ΔT.'}>
+              <Input value={dT} onChange={setDT} suffix='°C' />
+            </Row>
+            <Row label='Coolant' tip={'Select fluid. Properties (density, specific heat, viscosity) drive flow, Reynolds number, and pressure drop.'}>
+              <Select
+                value={coolant}
+                onChange={setCoolant}
+                options={Object.entries(COOLANTS).map(([value, c]) => ({ value, label: c.name }))}
+              />
+            </Row>
+            <Row label='ASHRAE W-class' help='Controls allowed supply range' tip={'ASHRAE liquid classes specify permissible entering water temperatures. The advisor validates your supply against the selected class.'}>
+              <Select
+                value={wClass}
+                onChange={setWClass}
+                options={Object.entries(W_CLASSES).map(([value, w]) => ({ value, label: w.label }))}
+              />
+            </Row>
+            <Row label='Cold plate approach' help='CPU/GPU-to-coolant' tip={'Approximate temperature difference from device junction to coolant. Impacts overall thermal budget and margin.'}>
+              <Input value={coldPlateApproachC} onChange={setColdPlateApproachC} suffix='°C' />
+            </Row>
+            <Row label='CDU approach' help='Facility water to CDU secondary' tip={'Approach temperature across the CDU between facility water and rack/secondary loop. Affects achievable supply temperature.'}>
+              <Input value={cduApproachC} onChange={setCduApproachC} suffix='°C' />
+            </Row>
+          </Section>
+
+          {/* Right: Hydraulics & Energy Inputs */}
+          <Section title='Hydraulics & Energy Inputs'>
+            <Row label='Pipe internal diameter' tip={'Inside diameter of the main loop piping. Larger diameter reduces velocity and frictional losses (ΔP), lowering pump power. Too small increases v and Re, raising ΔP and noise. Used to compute area A = πD²/4 and velocity v = Q/A.'}>
+              <Input value={pipeIDmm} onChange={setPipeIDmm} suffix='mm' />
+            </Row>
+            <Row label='Equivalent loop length' help='Straight length plus fittings equivalent' tip={'Total hydraulic length (m) including straight runs plus equivalent lengths for fittings, heat exchangers, quick-disconnects, manifolds. Head loss scales with (L/D), so longer loops increase ΔP and pump kW.'}>
+              <Input value={loopLenM} onChange={setLoopLenM} suffix='m' />
+            </Row>
+            <Row label='Pipe roughness' help='Copper 0.0015, steel 0.045, HDPE 0.007' tip={'Absolute roughness ε (mm) controls turbulent friction factor via Swamee–Jain. Smoother pipes (lower ε) reduce ΔP. Typical ε: copper ~0.0015 mm, HDPE ~0.007 mm, new steel ~0.045 mm.'}>
+              <Input value={roughnessMM} onChange={setRoughnessMM} suffix='mm' />
+            </Row>
+            <Row label='Minor loss coefficient ΣK' help='Valves, bends, HX, QDs, manifolds' tip={'Sum of local loss coefficients for fittings and components: ΔP_minor = (ΣK)·(ρv²/2). High-ΔP components (e.g., dense heat exchangers, restrictive QDs) raise pump power. Use vendor K data or handbooks.'}>
+              <Input value={kMinor} onChange={setKMinor} suffix='—' />
+            </Row>
+            <Row label='Pump efficiency' tip={'Overall hydraulic-to-electric efficiency η (0–1). Electrical pump power = ΔP·Q / η. Higher η reduces electrical input for the same head and flow. Typical rack pumps ~0.5–0.75.'}>
+              <Input value={pumpEff} onChange={setPumpEff} suffix='η (0–1)' step={0.01} />
+            </Row>
+            <Row label='Chiller COP (liquid loop)' tip={'Coefficient of Performance = Cooling kW / Electric kW. Higher COP means less electrical power for the same heat load. Depends on setpoints, approach temperatures, ambient, and heat-rejection method (e.g., dry cooler vs tower).'}>
+              <Input value={chillerCOP} onChange={setChillerCOP} suffix='—' step={0.1} />
+            </Row>
+          </Section>
+        </div>
+
         <div className='grid grid-cols-1 xl:grid-cols-3 gap-6 mt-6'>
-          <Section title='Thermal Results'>
+          <Section title='4) Thermal Results'>
             <div className='grid grid-cols-2 gap-3'>
               <Stat label='Heat removed' value={results.qHeat_kW} unit='kW' />
               <Stat label='Return temperature' value={results.return_C} unit='°C' />
@@ -428,7 +522,7 @@ export default function App() {
             </div>
           </Section>
 
-          <Section title='Hydraulics Results'>
+          <Section title='5) Hydraulics Results'>
             <div className='grid grid-cols-2 gap-3'>
               <Stat label='Reynolds' value={results.Re} unit='—' precision={0} />
               <Stat label='Friction factor f' value={results.f} unit='—' precision={4} />
@@ -438,7 +532,7 @@ export default function App() {
             </div>
           </Section>
 
-          <Section title='Energy & ROI'>
+          <Section title='6) Energy & ROI'>
             <div className='grid grid-cols-2 gap-3'>
               <Stat label='Chiller power (liquid)' value={results.chiller_kW} unit='kW' />
               <Stat label='Cooling tons' value={results.tons} unit='TR' />
@@ -461,15 +555,44 @@ export default function App() {
               )}
               <div className='grid grid-cols-2 gap-3 mt-3'>
                 <div>
-                  <div className='text-xs text-slate-500 mb-1'>CDU capacity (kW)</div>
+                  <div className='text-xs text-slate-500 mb-1'>CDU model</div>
+                  <Select
+                    value={cduModelId}
+                    onChange={setCduModelId}
+                    options={[{ value: '', label: '— Select —' }, ...CDU_MODELS.map(m => ({ value: m.id, label: `${m.model} • ${m.capacityKW} kW • ${m.type}` }))]}
+                  />
+                  {cduModelId && (
+                    <div className='flex gap-2 mt-2'>
+                      <button
+                        onClick={() => {
+                          const m = CDU_MODELS.find(x => x.id === cduModelId);
+                          if (m) setCduCapacityKW(String(m.capacityKW));
+                        }}
+                        className='rounded-xl border px-3 py-2 bg-slate-900 text-white'>
+                        Apply capacity
+                      </button>
+                    </div>
+                  )}
+                </div>
+                <div>
+                  <div className='text-xs text-slate-500 mb-1 flex items-center gap-2'>
+                    CDU capacity (kW)
+                    <Tooltip content={'Maximum cooling capacity for a single CDU. Used to estimate racks per CDU and total CDUs required. Should meet captured IT heat per CDU with margin for transients and redundancy.'} />
+                  </div>
                   <Input value={cduCapacityKW} onChange={setCduCapacityKW} suffix='kW' />
                 </div>
                 <div>
-                  <div className='text-xs text-slate-500 mb-1'>Avg rack power</div>
+                  <div className='text-xs text-slate-500 mb-1 flex items-center gap-2'>
+                    Avg rack power
+                    <Tooltip content={'Average IT power per rack that the CDU will serve. Higher rack kW reduces the number of racks that a given CDU can support.'} />
+                  </div>
                   <Input value={rackKW} onChange={setRackKW} suffix='kW/rack' />
                 </div>
                 <div>
-                  <div className='text-xs text-slate-500 mb-1'>Redundancy</div>
+                  <div className='text-xs text-slate-500 mb-1 flex items-center gap-2'>
+                    Redundancy
+                    <Tooltip content={'Select N or N+1 sizing. N+1 adds one extra CDU beyond the minimum to cover a single failure/maintenance, increasing total units required.'} />
+                  </div>
                   <Select value={redundancy} onChange={setRedundancy} options={[{ value: 'N', label: 'N' }, { value: 'N+1', label: 'N+1' }]} />
                 </div>
                 <div className='rounded-xl border p-3 bg-white'>
@@ -486,26 +609,87 @@ export default function App() {
           </Section>
 
           <Section title='ROI Baseline Inputs'>
-            <Row label='Baseline chiller COP (air)'>
+            <Row label='Baseline chiller COP (air)' tip={'Coefficient of Performance for the air-cooled baseline. COP = cooling kW / electric kW. Higher COP means a more efficient baseline (smaller savings vs DLC). Typical air-cooled data centers operate around COP 3–5 depending on climate and setpoints.'}>
               <Input value={baselineAirCOP} onChange={setBaselineAirCOP} suffix='—' step={0.1} />
             </Row>
-            <Row label='Fan power avoided' help='Facility-wide air-cooling fan power removed by DLC'>
+            <Row label='Fan power avoided' help='Facility-wide air-cooling fan power removed by DLC' tip={'Total site fan power that DLC eliminates or reduces (e.g., CRAH/CRAC fans, AHUs). Enter average kW across the load. Higher values increase savings attributed to DLC as less air handling is required.'}>
               <Input value={baselineFanKW} onChange={setBaselineFanKW} suffix='kW' />
             </Row>
             <div className='text-xs text-slate-500 mt-2'>Savings assume baseline includes chiller + fans; liquid case includes pump + liquid chiller only.</div>
           </Section>
         </div>
 
+        <div className='mt-6'>
         <Section title='Formulae (reference)'>
-          <div className='text-sm text-slate-600 space-y-1'>
-            <div>ṁ = Q̇ / (c_p ΔT), Q̇ in kW, c_p in kJ·kg⁻¹·K⁻¹ → ṁ in kg·s⁻¹</div>
-            <div>Q = ṁ/ρ → volumetric flow (m³·s⁻¹); v = Q / A; Re = ρ v D / μ</div>
-            <div>f = 64/Re (laminar); Swamee–Jain for turbulent: f = 0.25 / [log₁₀(ε/(3.7D) + 5.74/Re⁰·⁹)]²</div>
-            <div>ΔP = (f L/D + ΣK) · (ρ v² / 2); H = ΔP / (ρ g); P_pump = ΔP · Q / η</div>
-            <div>TR = kW / 3.517; P_chiller = kW / COP; PUE ≈ (IT + P_chiller + P_pump) / IT</div>
-            <div>Rack IT from devices ≈ (#devices × TDP × overhead)/1000</div>
+          <div className='text-sm text-slate-700 space-y-3'>
+            <div>
+              <div className='flex items-center gap-2'>
+                <div className='font-medium'>Heat balance and mass flow</div>
+                <Tooltip content={<div>
+                  <div><b>Symbols</b>: ṁ (mass flow rate, kg·s⁻¹), Q̇ (heat load, kW), c_p (specific heat capacity, kJ·kg⁻¹·K⁻¹), ΔT (temperature rise, K or °C).</div>
+                  <div><b>Use</b>: Estimate required mass flow to remove a given heat load at a chosen temperature rise.</div>
+                </div>} />
+              </div>
+              <div>ṁ = Q̇ / (c_p · ΔT)</div>
+            </div>
+
+            <div>
+              <div className='flex items-center gap-2'>
+                <div className='font-medium'>Volumetric flow, velocity, Reynolds number</div>
+                <Tooltip content={<div>
+                  <div><b>Symbols</b>: Q (volumetric flow rate, m³·s⁻¹), ρ (density, kg·m⁻³), A (cross-section, m² = πD²/4), v (mean velocity, m·s⁻¹), D (inside diameter, m), μ (dynamic viscosity, Pa·s), Re (Reynolds number, —).</div>
+                  <div><b>Use</b>: Convert mass flow to volumetric flow/velocity and assess laminar vs turbulent via Re.</div>
+                </div>} />
+              </div>
+              <div>Q = ṁ / ρ; v = Q / A; Re = (ρ · v · D) / μ</div>
+            </div>
+
+            <div>
+              <div className='flex items-center gap-2'>
+                <div className='font-medium'>Friction factor</div>
+                <Tooltip content={<div>
+                  <div><b>Symbols</b>: f (Darcy friction factor, —), ε (absolute roughness, m), D (diameter, m), Re (Reynolds number, —).</div>
+                  <div><b>Use</b>: Pick f for pressure-drop in straight pipe; depends on regime and roughness (Swamee–Jain for turbulent).</div>
+                </div>} />
+              </div>
+              <div>Laminar: f = 64/Re; Turbulent (Swamee–Jain): f = 0.25 / [log₁₀(ε/(3.7D) + 5.74/Re⁰·⁹)]²</div>
+            </div>
+
+            <div>
+              <div className='flex items-center gap-2'>
+                <div className='font-medium'>Pressure drop, head, pump power</div>
+                <Tooltip content={<div>
+                  <div><b>Symbols</b>: ΔP (pressure drop, Pa), L (equivalent length, m), D (diameter, m), ΣK (sum of minor-loss coefficients, —), ρ (density, kg·m⁻³), v (velocity, m·s⁻¹), g (gravity, 9.81 m·s⁻²), H (head, m), P_pump (pump electrical power), η (pump efficiency, —).</div>
+                  <div><b>Use</b>: Compute loop ΔP, convert to head, and estimate pump electric power for given flow and efficiency.</div>
+                </div>} />
+              </div>
+              <div>ΔP = (f · L/D + ΣK) · (ρ · v² / 2); H = ΔP / (ρ · g); P_pump = (ΔP · Q) / η</div>
+            </div>
+
+            <div>
+              <div className='flex items-center gap-2'>
+                <div className='font-medium'>Cooling, chiller, and PUE</div>
+                <Tooltip content={<div>
+                  <div><b>Symbols</b>: TR (tons of refrigeration, ton), COP (Coefficient of Performance, —), P_chiller (chiller electrical power, kW), P_pump (pump electrical power, kW), IT (IT load, kW), PUE (Power Usage Effectiveness, —).</div>
+                  <div><b>Use</b>: Convert cooling kW ↔ ton, estimate chiller kW from load and COP, and approximate site PUE.</div>
+                </div>} />
+              </div>
+              <div>TR = kW / 3.517; P_chiller = Q̇ / COP; PUE ≈ (IT + P_chiller + P_pump) / IT</div>
+            </div>
+
+            <div>
+              <div className='flex items-center gap-2'>
+                <div className='font-medium'>Rack IT from device presets</div>
+                <Tooltip content={<div>
+                  <div><b>Abbreviations</b>: TDP (Thermal Design Power), overhead (IT overhead factor, —).</div>
+                  <div><b>Use</b>: Rough-in rack IT power from device count, device TDP, and added IT overhead (CPUs, NICs, VRMs).</div>
+                </div>} />
+              </div>
+              <div>Rack IT ≈ (#devices × TDP × overhead) / 1000</div>
+            </div>
           </div>
         </Section>
+        </div>
 
         <div className='text-xs text-slate-500 mt-4'>
           Defaults are indicative. Override TDPs, counts, and rack kW with vendor BOMs. Validate W-class vs server specs and CDU datasheets.
